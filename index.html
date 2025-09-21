@@ -7,6 +7,11 @@
   <meta name="description" content="Lousa interativa infantil — rotina diária com salvamento no celular, ícones grandes e relatório simples em texto." />
   <meta name="theme-color" content="#7cc5ff" />
   <meta name="mobile-web-app-capable" content="yes">
+  <!-- Manifesto & ícone iOS -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root{
       --bg:#f9fbff; --paper:#ffffff; --ink:#0f172a; --muted:#667085; --line:#e7eef8;
@@ -64,8 +69,6 @@
     /* Status badge */
     .status{position:fixed;right:12px;top:12px;background:#fff;border:2px solid #d8e8ff;border-radius:999px;padding:6px 10px;font-size:12px;color:#0b3f70;box-shadow:0 10px 22px rgba(0,0,0,.06);z-index:60}
   </style>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app">
@@ -90,6 +93,7 @@
     </header>
 
     <div class="grid">
+      <!-- Agenda -->
       <section class="card">
         <h2>Agenda diária</h2>
         <div class="tabs" id="tabs"></div>
@@ -97,6 +101,7 @@
         <p class="note">Dica: toque no quadradinho para marcar. O horário de conclusão fica registrado.</p>
       </section>
 
+      <!-- Lembretes & Relatório -->
       <aside class="card">
         <h2>Regras e lembretes</h2>
         <div class="rule"><span class="emoji">🪥</span> <strong>Escovar os dentes após todas as refeições</strong></div>
@@ -118,7 +123,7 @@
     <footer>Funciona offline • Adicione à tela inicial para ser um app ✨</footer>
   </div>
 
-  <!-- Banner de instalação para fallback -->
+  <!-- Banner de instalação (fallback) -->
   <div class="install" id="installBanner" role="dialog" aria-live="polite">
     <img id="iIcon" alt="Ícone" />
     <div class="text">
@@ -132,15 +137,6 @@
   <div class="status" id="status">Checando instalação…</div>
 
   <script>
-    /* =============================================================
-       Lousa App — correção de Service Worker
-       PROBLEMA: Registrar SW a partir de URL "blob:" falha.
-       SOLUÇÃO: Só registrar SW via arquivo HTTP/HTTPS real (ex.: sw.js).
-       - Antes de registrar, faz-se um fetch de sw.js; só registra se existir.
-       - Em contextos não seguros (ex.: preview blob, file://), não registra
-         e mostra um aviso + fallback para "Adicionar à tela inicial" pelo menu.
-       ============================================================= */
-
     /* ===================== Dados base ===================== */
     const BASE = [
       {time:"06:15", label:"Café da manhã", key:"cafe", icon:"🥣"},
@@ -157,7 +153,7 @@
     const DIAS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // 0..6
 
     /* ===================== Estado / Storage ===================== */
-    const KEY='lousa-app-pedro-v4'; // bump para isolar do cache anterior
+    const KEY='lousa-app-pedro-v5'; // bump p/ isolar versões antigas
     const NAMEKEY='lousa-app-nome';
     const IMGKEY='lousa-app-avatar';
 
@@ -239,68 +235,35 @@
     avatarBox.addEventListener('click', ()=> avatarInput.click());
     avatarInput.addEventListener('change', e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ localStorage.setItem(IMGKEY, r.result); setAvatar(r.result) }; r.readAsDataURL(f) });
     const storedImg=localStorage.getItem(IMGKEY); if(storedImg) setAvatar(storedImg);
+    // Foto padrão (./images/pedro.jpg) se não houver no aparelho
+    (async()=>{ const hasStored = !!localStorage.getItem(IMGKEY); if(!hasStored){ try{ const res=await fetch('./images/pedro.jpg',{cache:'no-store'}); if(res.ok){ const blob=await res.blob(); const rd=new FileReader(); rd.onload=()=>{ localStorage.setItem(IMGKEY, rd.result); setAvatar(rd.result) }; rd.readAsDataURL(blob);} }catch(_){/* ignore */} } })();
 
-    /* ===================== Manifest dinâmico (ok em HTTPS) ===================== */
-    const PNG192 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADAAQAAAAA6f6VAAABlElEQVR4nO3TwQmDQBRA0Xbq4FQW7iY0Kqg7qgU2WmQy0s0r7h1r3g0c8j8G4i8hU2w6Cj0F6Kq8m9m1x4j3zO1fXG3v1y8r7gF0F3g5F8Y0A1n6k4gG2gA0k2Ew6y7f0h2c8y2QG3y6D9m2u8L9qJw0iC3xwqv0m1r8H3oX1w1b4m5o0qf7HqgGxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKx4K9vYb2VwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKx8C8z4H9b0y+9J5g3z0S0v3z1Gf9Yc0v3z1Gf9Yc0v3z1Gf9Yc0v3z1Gf9Yc4K9j7v3e+0w8nry1Sx0AAAAASUVORK5CYII=';
-    const PNG512 = PNG192; // placeholder; para produção, use PNGs reais
-
-    const manifest = {
-      name: "Lousa App — Rotina do Pedro",
-      short_name: "Lousa do Pedro",
-      description: "Rotina infantil com check de tarefas, salvamento local e relatório.",
-      display: "standalone",
-      display_override: ["standalone","minimal-ui"],
-      start_url: ".?source=pwa",
-      scope: ".",
-      background_color: "#f9fbff",
-      theme_color: "#7cc5ff",
-      icons: [
-        { src: PNG192, sizes: "192x192", type: "image/png", purpose: "any" },
-        { src: PNG512, sizes: "512x512", type: "image/png", purpose: "any" }
-      ]
-    };
-    const manBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-    const manUrl = URL.createObjectURL(manBlob);
-    const link = document.createElement('link'); link.rel='manifest'; link.href=manUrl; document.head.appendChild(link);
-
-    /* ===================== Service Worker (sem blob:) ===================== */
+    /* ===================== Service Worker (produção) ===================== */
     const btnInstall=document.getElementById('btnInstall');
     const installBanner=document.getElementById('installBanner');
     const iYes=document.getElementById('iYes'); const iNo=document.getElementById('iNo');
 
     const isSecure = window.isSecureContext && /^(https:)|(^http:\/\/localhost)/.test(location.href);
-    const swUrl = (()=>{ // sw.js ao lado do index.html
-      const base = location.pathname.replace(/\/[^\/]*$/, '/');
-      return base + 'sw.js';
-    })();
+    const swUrl = (()=>{ const base = location.pathname.replace(/\/[^\/]*$/, '/'); return base + 'sw.js'; })();
 
     function setStatus(msg){ statusEl.textContent = msg; }
 
-    async function maybeRegisterSW(){
-      if(!('serviceWorker' in navigator)) { setStatus('Navegador sem suporte a Service Worker'); return; }
-      if(!isSecure){
-        setStatus('Visualização (sem SW). Para instalar, publique via HTTPS.');
-        return; // evita tentativa em blob:/file:
-      }
+    async function registerSW(){
+      if(!('serviceWorker' in navigator)) { setStatus('Navegador sem Service Worker'); return; }
+      if(!isSecure){ setStatus('Sem HTTPS (preview). Instale via menu do Chrome.'); return; }
       try{
-        // Verifica se sw.js existe no servidor (evita erro de 404 ou blob:)
         const res = await fetch(swUrl, {cache:'no-store'});
-        if(!res.ok){ setStatus('sw.js não encontrado — publique o arquivo junto do index.html'); return; }
-        const ct = (res.headers.get('content-type')||'').toLowerCase();
-        if(!ct.includes('javascript') && !ct.includes('text')){ setStatus('sw.js inválido — verifique o conteúdo JS'); return; }
+        if(!res.ok){ setStatus('sw.js não encontrado na raiz. Publique sw.js ao lado do index.html'); return; }
         await navigator.serviceWorker.register(swUrl);
         setStatus('Offline pronto ✅');
-      }catch(err){
-        console.warn('Falha ao registrar SW:', err);
-        setStatus('Falha ao registrar SW — veja o console');
-      }
+      }catch(err){ console.warn(err); setStatus('Falha no SW — veja o console'); }
     }
 
-    // A2HS (Add to Home Screen)
+    // Add to Home Screen (A2HS)
     let deferredPrompt=null;
     window.addEventListener('beforeinstallprompt', (e)=>{
       e.preventDefault(); deferredPrompt=e; btnInstall.style.display='inline-block'; installBanner.classList.add('show');
-      try{ document.getElementById('iIcon').src = PNG192; }catch(_){ }
+      try{ document.getElementById('iIcon').src = './icons/icon-192.png'; }catch(_){ }
     });
     async function triggerInstall(){
       if(!deferredPrompt){ alert('Se o botão não aparecer, use o menu do Chrome: “Adicionar à tela inicial”.'); return; }
@@ -327,8 +290,7 @@
     /* ===================== Boot ===================== */
     function render(){ renderTabs(); renderList(); stamp.textContent=fmtFull(new Date()); }
     render();
-    maybeRegisterSW();
+    registerSW();
   </script>
 </body>
 </html>
-
