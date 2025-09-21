@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Lousa App — Rotina do Pedro</title>
+  <meta name="description" content="Lousa interativa infantil — rotina diária com salvamento no celular, ícones grandes e relatório simples em texto." />
+  <meta name="theme-color" content="#7cc5ff" />
+  <style>
+    /* --- Tema super claro, infantil, com foco em legibilidade e toque --- */
+    :root{
+      --bg:#f9fbff; --paper:#ffffff; --ink:#0f172a; --muted:#667085; --line:#e7eef8;
+      --brand:#38bdf8; /* azul bebê */
+      --brand2:#7cc5ff; /* azul claro */
+      --ok:#22c55e; --warn:#f59e0b; --accent:#a78bfa; --pink:#f472b6; --sky:#bae6fd;
+      --radius:22px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family: 'Nunito', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif}
+    h1,h2{margin:0}
+    .app{max-width:880px;margin:0 auto;padding:16px 14px 28px}
+    header{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-bottom:12px}
+    .avatar{width:80px;height:80px;border-radius:24px;background:var(--paper);border:2px solid var(--line);display:grid;place-items:center;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.05)}
+    .avatar img{width:100%;height:100%;object-fit:cover}
+    .title h1{font-size:clamp(22px,5.5vw,32px)}
+    .title p{margin-top:4px;color:var(--muted);font-size:14px}
+    .topBtns{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{appearance:none;border:2px solid var(--line);background:var(--paper);border-radius:999px;padding:10px 14px;font-weight:800;color:#0f172a;box-shadow:0 6px 18px rgba(0,0,0,.06);cursor:pointer}
+    .btn:active{transform:translateY(1px)}
+
+    .card{background:var(--paper);border:2px solid var(--line);border-radius:var(--radius);padding:12px 12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.06)}
+
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .tab{padding:8px 14px;border-radius:999px;border:2px solid var(--line);background:#f3f8ff;color:#173b6b;font-weight:900;cursor:pointer}
+    .tab.active{background:linear-gradient(180deg,var(--brand2),var(--brand));color:#05355d;border-color:transparent;box-shadow:0 8px 22px rgba(56,189,248,.35)}
+
+    .timeline{display:grid;gap:10px}
+    .row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:18px;border:2px solid var(--line);background:linear-gradient(180deg,#fff,#f7fbff)}
+    .time{font-variant-numeric:tabular-nums;font-weight:900;color:#0b3f70}
+    .label{font-size:16px}
+    .emoji{font-size:22px;margin-right:6px}
+    .chip{font-size:12px;font-weight:800;padding:4px 8px;border-radius:999px;background:#eef6ff;border:2px solid var(--line);color:#174e86}
+
+    .check{width:32px;height:32px;border-radius:10px;border:3px solid #9acbff;background:#fff;display:grid;place-items:center;cursor:pointer}
+    .check.done{background:var(--ok);border-color:var(--ok);color:#fff}
+    .when{font-size:12px;color:#20734a;font-weight:800}
+
+    .grid{display:grid;grid-template-columns:1fr;gap:14px}
+    @media(min-width:860px){.grid{grid-template-columns:1.2fr .8fr}}
+
+    .note{font-size:13px;color:var(--muted)}
+    .rule{display:flex;gap:10px;align-items:center;padding:10px;border:2px dashed #cfe4ff;border-radius:16px;background:#f2f8ff}
+    .rule strong{color:#0856a7}
+
+    .report{display:grid;gap:8px}
+    textarea{width:100%;min-height:140px;padding:12px;border-radius:16px;border:2px solid var(--line);font-family:'Nunito', system-ui, sans-serif}
+
+    footer{margin-top:20px;text-align:center;color:var(--muted);font-size:12px}
+
+    /* iOS safe area padding */
+    .app{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+  </style>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="avatar" id="avatarBox" title="Toque para escolher uma foto">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="8" r="4" stroke="#7cc5ff" stroke-width="1.8"/>
+          <path d="M4 21a8 8 0 0 1 16 0" stroke="#7cc5ff" stroke-width="1.8"/>
+        </svg>
+      </div>
+      <div class="title">
+        <h1>Rotina do <span id="nome" contenteditable="true">Pedro</span> 🐣</h1>
+        <p class="note">Ter/Qui — Natação às 15:00 • Salva automaticamente no seu celular • Última atualização: <span id="stamp"></span></p>
+      </div>
+      <div class="topBtns">
+        <input type="file" id="avatar" accept="image/*" hidden>
+        <button class="btn" id="btnShare">Compartilhar relatório</button>
+        <button class="btn" id="btnPrint">Imprimir</button>
+        <button class="btn" id="btnReset">Zerar o dia</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Agenda -->
+      <section class="card">
+        <h2>Agenda diária</h2>
+        <div class="tabs" id="tabs"></div>
+        <div class="timeline" id="list"></div>
+        <p class="note">Dica: toque no quadradinho para marcar. O horário de conclusão fica registrado.</p>
+      </section>
+
+      <!-- Lembretes & Relatório -->
+      <aside class="card">
+        <h2>Regras e lembretes</h2>
+        <div class="rule"><span class="emoji">🪥</span> <strong>Escovar os dentes após todas as refeições</strong></div>
+        <div class="rule"><span class="emoji">🎒</span> <strong>Mochila pronta na noite anterior</strong></div>
+        <div class="rule"><span class="emoji">💧</span> <strong>Levar garrafinha de água</strong></div>
+        <br/>
+        <h2>Relatório simples</h2>
+        <div class="report">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="btnReportHoje">Relatório de hoje</button>
+            <button class="btn" id="btnReportSemana">Relatório da semana</button>
+            <button class="btn" id="btnCopy">Copiar</button>
+          </div>
+          <textarea id="reportBox" placeholder="Os relatórios gerados aparecem aqui. Você pode copiar e enviar por WhatsApp."></textarea>
+        </div>
+      </aside>
+    </div>
+
+    <footer>Funciona offline • Adicione à tela inicial para parecer um app ✨</footer>
+  </div>
+
+  <script>
+    /* ===================== Dados base ===================== */
+    const BASE = [
+      {time:"06:15", label:"Café da manhã", key:"cafe", icon:"🥣"},
+      {time:"06:30", label:"Escovar dentes e banho", key:"banho", icon:"🪥"},
+      {time:"07:20", label:"Escola", key:"escola", icon:"🏫"},
+      {time:"12:30", label:"Almoço → escovar dentes", key:"almoco", icon:"🍽️"},
+      {time:"14:30", label:"Estudos + Inglês em casa", key:"estudos", icon:"📚"},
+      {time:"15:00", label:"Varrer o quintal", key:"quintal", icon:"🧹", alt:{days:[2,4], label:"Natação 🏊‍♂️"}},
+      {time:"Livre", label:"Tempo livre (após as tarefas)", key:"livre", icon:"🧩"},
+      {time:"18:30", label:"Jantar → escovar dentes", key:"jantar", icon:"🍽️"},
+      {time:"21:00", label:"Lanche da noite", key:"lancheNoite", icon:"🥛"},
+      {time:"21:15", label:"Dormir", key:"dormir", icon:"🌙"},
+    ];
+    const DIAS = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // 0..6
+
+    /* ===================== Estado / Storage ===================== */
+    const KEY='lousa-app-pedro-v2';
+    const NAMEKEY='lousa-app-nome';
+    const IMGKEY='lousa-app-avatar';
+
+    const now=()=>new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const fmt=(d)=>`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const fmtFull=(d)=>`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${fmt(d)}`;
+
+    const load=()=>JSON.parse(localStorage.getItem(KEY)||'{}');
+    const save=(obj)=>localStorage.setItem(KEY,JSON.stringify(obj));
+
+    // Retorna chave do dia atual/tabs
+    let dayIndex=( (new Date().getDay()+6)%7 ); // seg=0
+    const dayKey= (i=dayIndex)=>`d${i}`;
+
+    function getDay(i=dayIndex){
+      const db=load();
+      return db[dayKey(i)]||{}; // { taskKey: {done:true, time:"HH:MM"} }
+    }
+    function setDay(data,i=dayIndex){
+      const db=load();
+      db[dayKey(i)]=data; save(db);
+      stamp.textContent = fmtFull(now());
+    }
+
+    /* ===================== UI ===================== */
+    const tabs=document.getElementById('tabs');
+    const list=document.getElementById('list');
+    const stamp=document.getElementById('stamp');
+    const reportBox=document.getElementById('reportBox');
+
+    function renderTabs(){
+      tabs.innerHTML='';
+      DIAS.forEach((d,i)=>{
+        const b=document.createElement('button');
+        b.className='tab'+(i===dayIndex?' active':'');
+        b.textContent=d;
+        b.onclick=()=>{dayIndex=i; renderTabs(); renderList();};
+        tabs.appendChild(b);
+      });
+    }
+
+    function renderList(){
+      list.innerHTML='';
+      const day=getDay();
+      BASE.forEach(item=>{
+        let label=item.label;
+        if(item.alt && item.alt.days.includes(dayIndex)) label=item.alt.label;
+        const row=document.createElement('div'); row.className='row';
+
+        const ck=document.createElement('div');
+        ck.className='check'+(day[item.key]?.done?' done':'');
+        ck.title=day[item.key]?.done?`Concluído às ${day[item.key]?.time}`:'Marcar como concluído';
+        ck.onclick=()=>{
+          const cur=getDay();
+          const was=!!cur[item.key]?.done;
+          cur[item.key]={done:!was, time:fmt(now())};
+          setDay(cur); renderList();
+        };
+
+        const time=document.createElement('div'); time.className='time'; time.textContent=item.time;
+        const labelBox=document.createElement('div'); labelBox.className='label';
+        labelBox.innerHTML=`<span class="emoji">${item.icon}</span>${label}`;
+
+        const right=document.createElement('div');
+        const when=document.createElement('div'); when.className='when';
+        if(day[item.key]?.done){ when.textContent=`✓ ${day[item.key].time}`; }
+        const chip=document.createElement('div'); chip.className='chip'; chip.textContent='Diário';
+        right.appendChild(when); right.appendChild(chip);
+
+        row.appendChild(ck); row.appendChild(time); row.appendChild(labelBox); row.appendChild(right);
+        list.appendChild(row);
+      });
+    }
+
+    /* ===================== Relatórios ===================== */
+    function relatorioDia(i){
+      const data=getDay(i); const nome=document.getElementById('nome').textContent.trim()||'Pedro';
+      const titulo=`Relatório — ${DIAS[i]} (${new Date().toLocaleDateString()}) — ${nome}`;
+      const linhas=BASE.map(it=>{
+        let lbl=it.label; if(it.alt&&it.alt.days.includes(i)) lbl=it.alt.label;
+        const st=data[it.key];
+        const mark=st?.done?'[OK]':'[ ]';
+        const at=st?.time?` — ${st.time}`:'';
+        return `${mark} ${it.time} — ${lbl}${at}`;
+      });
+      return `${titulo}\n${'-'.repeat(titulo.length)}\n`+linhas.join('\n');
+    }
+
+    function relatorioSemana(){
+      let out=[]; const nome=document.getElementById('nome').textContent.trim()||'Pedro';
+      out.push(`Relatório semanal — ${nome}`);
+      out.push('==============================');
+      for(let i=0;i<7;i++){
+        out.push(`\n${DIAS[i]}:`);
+        out.push(relatorioDia(i));
+      }
+      return out.join('\n');
+    }
+
+    /* ===================== Ações topo ===================== */
+    document.getElementById('btnReportHoje').onclick=()=>{ reportBox.value=relatorioDia(dayIndex); };
+    document.getElementById('btnReportSemana').onclick=()=>{ reportBox.value=relatorioSemana(); };
+    document.getElementById('btnCopy').onclick=()=>{ reportBox.select(); document.execCommand('copy'); };
+
+    document.getElementById('btnPrint').onclick=()=>window.print();
+    document.getElementById('btnReset').onclick=()=>{ const db=load(); db[dayKey()]= {}; save(db); renderList(); };
+
+    // Web Share API (melhor experiência em celular)
+    document.getElementById('btnShare').onclick=async()=>{
+      const text=relatorioDia(dayIndex);
+      if(navigator.share){ try{ await navigator.share({text}); }catch(e){} }
+      else{ reportBox.value=text; alert('Relatório gerado na caixa de texto. Copie e cole onde quiser.'); }
+    };
+
+    /* ===================== Nome e Foto ===================== */
+    const nomeEl=document.getElementById('nome');
+    nomeEl.addEventListener('input',()=> localStorage.setItem(NAMEKEY, nomeEl.textContent.trim()||'Pedro'));
+    const n=localStorage.getItem(NAMEKEY); if(n) nomeEl.textContent=n;
+
+    const avatarInput=document.getElementById('avatar');
+    const avatarBox=document.getElementById('avatarBox');
+    function setAvatar(src){ avatarBox.innerHTML=`<img alt="Foto do ${nomeEl.textContent}" src="${src}">`; }
+    avatarBox.addEventListener('click', ()=> avatarInput.click());
+    avatarInput.addEventListener('change', e=>{
+      const f=e.target.files?.[0]; if(!f) return;
+      const r=new FileReader(); r.onload=()=>{ localStorage.setItem(IMGKEY, r.result); setAvatar(r.result); }; r.readAsDataURL(f);
+    });
+    const storedImg=localStorage.getItem(IMGKEY); if(storedImg) setAvatar(storedImg);
+
+    /* ===================== PWA (parece aplicativo) ===================== */
+    // Manifest dinâmico
+    const manifest={
+      name:"Lousa App — Rotina do Pedro",
+      short_name:"Lousa do Pedro",
+      display:"standalone",
+      start_url:"./",
+      background_color:"#f9fbff",
+      theme_color:"#7cc5ff",
+      icons:[
+        {src:"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTI4JyBoZWlnaHQ9JzEyOCcgdmlld0JveD0nMCAwIDI0IDI0JyBmaWxsPSdub25lJyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxjaXJjbGUgY3g9JzEyJyBjeT0nOCcgcj0nNCcgc3Ryb2tlPScjN2NjNWZmJyBzdHJva2Utd2lkdGg9JzEnLz48cGF0aCBkPSdNNCAyMWE4IDggMCAxIDEgMTYgMCcgc3Ryb2tlPScjN2NjNWZmJyBzdHJva2Utd2lkdGg9JzEnLz48L3N2Zz4=", sizes:"128x128", type:"image/svg+xml"}
+      ]
+    };
+    const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('link'); link.rel='manifest'; link.href=url; document.head.appendChild(link);
+
+    // Service Worker básico (cache do próprio arquivo)
+    if('serviceWorker' in navigator){
+      const swCode=`self.addEventListener('install',e=>{e.waitUntil(caches.open('lousa-pedro-v1').then(c=>c.addAll(['./'])))});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})`;
+      const swBlob=new Blob([swCode],{type:'text/javascript'});
+      const swUrl=URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl);
+    }
+
+    /* ===================== Boot ===================== */
+    function boot(){ renderTabs(); renderList(); stamp.textContent=fmtFull(new Date()); }
+    boot();
+  </script>
+</body>
+</html>
