@@ -6,19 +6,16 @@
   <title>Lousa App — Rotina do Pedro</title>
   <meta name="description" content="Lousa interativa infantil — rotina diária com salvamento no celular, ícones grandes e relatório simples em texto." />
   <meta name="theme-color" content="#7cc5ff" />
+  <meta name="mobile-web-app-capable" content="yes">
   <style>
-    /* --- Tema super claro, infantil, com foco em legibilidade e toque --- */
     :root{
       --bg:#f9fbff; --paper:#ffffff; --ink:#0f172a; --muted:#667085; --line:#e7eef8;
-      --brand:#38bdf8; /* azul bebê */
-      --brand2:#7cc5ff; /* azul claro */
-      --ok:#22c55e; --warn:#f59e0b; --accent:#a78bfa; --pink:#f472b6; --sky:#bae6fd;
-      --radius:22px;
+      --brand:#38bdf8; --brand2:#7cc5ff; --ok:#22c55e; --warn:#f59e0b; --radius:22px;
     }
     *{box-sizing:border-box}
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family: 'Nunito', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:'Nunito',system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
     h1,h2{margin:0}
-    .app{max-width:880px;margin:0 auto;padding:16px 14px 28px}
+    .app{max-width:880px;margin:0 auto;padding:16px 14px calc(28px + env(safe-area-inset-bottom))}
     header{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-bottom:12px}
     .avatar{width:80px;height:80px;border-radius:24px;background:var(--paper);border:2px solid var(--line);display:grid;place-items:center;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.05)}
     .avatar img{width:100%;height:100%;object-fit:cover}
@@ -53,12 +50,19 @@
     .rule strong{color:#0856a7}
 
     .report{display:grid;gap:8px}
-    textarea{width:100%;min-height:140px;padding:12px;border-radius:16px;border:2px solid var(--line);font-family:'Nunito', system-ui, sans-serif}
+    textarea{width:100%;min-height:140px;padding:12px;border-radius:16px;border:2px solid var(--line);font-family:'Nunito',system-ui,sans-serif}
 
     footer{margin-top:20px;text-align:center;color:var(--muted);font-size:12px}
 
-    /* iOS safe area padding */
-    .app{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+    /* Banner de instalação (Android) */
+    .install{position:fixed;inset:auto 12px 12px 12px;background:#ffffff;border:2px solid #d8e8ff;border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.08);padding:12px;display:none;gap:10px;align-items:center;z-index:50}
+    .install.show{display:flex}
+    .install img{width:44px;height:44px;border-radius:12px;border:1px solid #d8e8ff}
+    .install .text{flex:1}
+    .install .text b{display:block}
+
+    /* Status badge */
+    .status{position:fixed;right:12px;top:12px;background:#fff;border:2px solid #d8e8ff;border-radius:999px;padding:6px 10px;font-size:12px;color:#0b3f70;box-shadow:0 10px 22px rgba(0,0,0,.06);z-index:60}
   </style>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
@@ -78,6 +82,7 @@
       </div>
       <div class="topBtns">
         <input type="file" id="avatar" accept="image/*" hidden>
+        <button class="btn" id="btnInstall" style="display:none">Instalar</button>
         <button class="btn" id="btnShare">Compartilhar relatório</button>
         <button class="btn" id="btnPrint">Imprimir</button>
         <button class="btn" id="btnReset">Zerar o dia</button>
@@ -85,7 +90,6 @@
     </header>
 
     <div class="grid">
-      <!-- Agenda -->
       <section class="card">
         <h2>Agenda diária</h2>
         <div class="tabs" id="tabs"></div>
@@ -93,7 +97,6 @@
         <p class="note">Dica: toque no quadradinho para marcar. O horário de conclusão fica registrado.</p>
       </section>
 
-      <!-- Lembretes & Relatório -->
       <aside class="card">
         <h2>Regras e lembretes</h2>
         <div class="rule"><span class="emoji">🪥</span> <strong>Escovar os dentes após todas as refeições</strong></div>
@@ -112,10 +115,32 @@
       </aside>
     </div>
 
-    <footer>Funciona offline • Adicione à tela inicial para parecer um app ✨</footer>
+    <footer>Funciona offline • Adicione à tela inicial para ser um app ✨</footer>
   </div>
 
+  <!-- Banner de instalação para fallback -->
+  <div class="install" id="installBanner" role="dialog" aria-live="polite">
+    <img id="iIcon" alt="Ícone" />
+    <div class="text">
+      <b>Instalar “Lousa do Pedro”?</b>
+      <div class="note">Toque em Instalar para adicionar à sua tela inicial.</div>
+    </div>
+    <button class="btn" id="iYes">Instalar</button>
+    <button class="btn" id="iNo">Agora não</button>
+  </div>
+
+  <div class="status" id="status">Checando instalação…</div>
+
   <script>
+    /* =============================================================
+       Lousa App — correção de Service Worker
+       PROBLEMA: Registrar SW a partir de URL "blob:" falha.
+       SOLUÇÃO: Só registrar SW via arquivo HTTP/HTTPS real (ex.: sw.js).
+       - Antes de registrar, faz-se um fetch de sw.js; só registra se existir.
+       - Em contextos não seguros (ex.: preview blob, file://), não registra
+         e mostra um aviso + fallback para "Adicionar à tela inicial" pelo menu.
+       ============================================================= */
+
     /* ===================== Dados base ===================== */
     const BASE = [
       {time:"06:15", label:"Café da manhã", key:"cafe", icon:"🥣"},
@@ -129,10 +154,10 @@
       {time:"21:00", label:"Lanche da noite", key:"lancheNoite", icon:"🥛"},
       {time:"21:15", label:"Dormir", key:"dormir", icon:"🌙"},
     ];
-    const DIAS = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // 0..6
+    const DIAS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // 0..6
 
     /* ===================== Estado / Storage ===================== */
-    const KEY='lousa-app-pedro-v2';
+    const KEY='lousa-app-pedro-v4'; // bump para isolar do cache anterior
     const NAMEKEY='lousa-app-nome';
     const IMGKEY='lousa-app-avatar';
 
@@ -144,33 +169,24 @@
     const load=()=>JSON.parse(localStorage.getItem(KEY)||'{}');
     const save=(obj)=>localStorage.setItem(KEY,JSON.stringify(obj));
 
-    // Retorna chave do dia atual/tabs
-    let dayIndex=( (new Date().getDay()+6)%7 ); // seg=0
-    const dayKey= (i=dayIndex)=>`d${i}`;
-
-    function getDay(i=dayIndex){
-      const db=load();
-      return db[dayKey(i)]||{}; // { taskKey: {done:true, time:"HH:MM"} }
-    }
-    function setDay(data,i=dayIndex){
-      const db=load();
-      db[dayKey(i)]=data; save(db);
-      stamp.textContent = fmtFull(now());
-    }
+    let dayIndex=((new Date().getDay()+6)%7); // seg=0
+    const dayKey=(i=dayIndex)=>`d${i}`;
+    function getDay(i=dayIndex){ const db=load(); return db[dayKey(i)]||{} }
+    function setDay(data,i=dayIndex){ const db=load(); db[dayKey(i)]=data; save(db); stamp.textContent=fmtFull(now()) }
 
     /* ===================== UI ===================== */
     const tabs=document.getElementById('tabs');
     const list=document.getElementById('list');
     const stamp=document.getElementById('stamp');
     const reportBox=document.getElementById('reportBox');
+    const statusEl=document.getElementById('status');
 
     function renderTabs(){
       tabs.innerHTML='';
       DIAS.forEach((d,i)=>{
         const b=document.createElement('button');
         b.className='tab'+(i===dayIndex?' active':'');
-        b.textContent=d;
-        b.onclick=()=>{dayIndex=i; renderTabs(); renderList();};
+        b.textContent=d; b.onclick=()=>{dayIndex=i; renderTabs(); renderList();};
         tabs.appendChild(b);
       });
     }
@@ -179,30 +195,18 @@
       list.innerHTML='';
       const day=getDay();
       BASE.forEach(item=>{
-        let label=item.label;
-        if(item.alt && item.alt.days.includes(dayIndex)) label=item.alt.label;
+        let label=item.label; if(item.alt && item.alt.days.includes(dayIndex)) label=item.alt.label;
         const row=document.createElement('div'); row.className='row';
-
         const ck=document.createElement('div');
         ck.className='check'+(day[item.key]?.done?' done':'');
         ck.title=day[item.key]?.done?`Concluído às ${day[item.key]?.time}`:'Marcar como concluído';
-        ck.onclick=()=>{
-          const cur=getDay();
-          const was=!!cur[item.key]?.done;
-          cur[item.key]={done:!was, time:fmt(now())};
-          setDay(cur); renderList();
-        };
-
+        ck.onclick=()=>{ const cur=getDay(); const was=!!cur[item.key]?.done; cur[item.key]={done:!was, time:fmt(now())}; setDay(cur); renderList(); };
         const time=document.createElement('div'); time.className='time'; time.textContent=item.time;
-        const labelBox=document.createElement('div'); labelBox.className='label';
-        labelBox.innerHTML=`<span class="emoji">${item.icon}</span>${label}`;
-
+        const labelBox=document.createElement('div'); labelBox.className='label'; labelBox.innerHTML=`<span class="emoji">${item.icon}</span>${label}`;
         const right=document.createElement('div');
-        const when=document.createElement('div'); when.className='when';
-        if(day[item.key]?.done){ when.textContent=`✓ ${day[item.key].time}`; }
+        const when=document.createElement('div'); when.className='when'; if(day[item.key]?.done){ when.textContent=`✓ ${day[item.key].time}` }
         const chip=document.createElement('div'); chip.className='chip'; chip.textContent='Diário';
         right.appendChild(when); right.appendChild(chip);
-
         row.appendChild(ck); row.appendChild(time); row.appendChild(labelBox); row.appendChild(right);
         list.appendChild(row);
       });
@@ -211,86 +215,120 @@
     /* ===================== Relatórios ===================== */
     function relatorioDia(i){
       const data=getDay(i); const nome=document.getElementById('nome').textContent.trim()||'Pedro';
-      const titulo=`Relatório — ${DIAS[i]} (${new Date().toLocaleDateString()}) — ${nome}`;
-      const linhas=BASE.map(it=>{
-        let lbl=it.label; if(it.alt&&it.alt.days.includes(i)) lbl=it.alt.label;
-        const st=data[it.key];
-        const mark=st?.done?'[OK]':'[ ]';
-        const at=st?.time?` — ${st.time}`:'';
-        return `${mark} ${it.time} — ${lbl}${at}`;
-      });
+      const hoje=new Date(); const titulo=`Relatório — ${DIAS[i]} (${pad(hoje.getDate())}/${pad(hoje.getMonth()+1)}/${hoje.getFullYear()}) — ${nome}`;
+      const linhas=BASE.map(it=>{ let lbl=it.label; if(it.alt&&it.alt.days.includes(i)) lbl=it.alt.label; const st=data[it.key]; const mark=st?.done?'[OK]':'[ ]'; const at=st?.time?` — ${st.time}`:''; return `${mark} ${it.time} — ${lbl}${at}`; });
       return `${titulo}\n${'-'.repeat(titulo.length)}\n`+linhas.join('\n');
     }
+    function relatorioSemana(){ let out=[]; const nome=document.getElementById('nome').textContent.trim()||'Pedro'; out.push(`Relatório semanal — ${nome}`); out.push('=============================='); for(let i=0;i<7;i++){ out.push(`\n${DIAS[i]}:`); out.push(relatorioDia(i)); } return out.join('\n'); }
 
-    function relatorioSemana(){
-      let out=[]; const nome=document.getElementById('nome').textContent.trim()||'Pedro';
-      out.push(`Relatório semanal — ${nome}`);
-      out.push('==============================');
-      for(let i=0;i<7;i++){
-        out.push(`\n${DIAS[i]}:`);
-        out.push(relatorioDia(i));
-      }
-      return out.join('\n');
-    }
-
-    /* ===================== Ações topo ===================== */
-    document.getElementById('btnReportHoje').onclick=()=>{ reportBox.value=relatorioDia(dayIndex); };
-    document.getElementById('btnReportSemana').onclick=()=>{ reportBox.value=relatorioSemana(); };
-    document.getElementById('btnCopy').onclick=()=>{ reportBox.select(); document.execCommand('copy'); };
-
+    document.getElementById('btnReportHoje').onclick=()=>{ reportBox.value=relatorioDia(dayIndex) };
+    document.getElementById('btnReportSemana').onclick=()=>{ reportBox.value=relatorioSemana() };
+    document.getElementById('btnCopy').onclick=()=>{ reportBox.select(); document.execCommand('copy') };
     document.getElementById('btnPrint').onclick=()=>window.print();
     document.getElementById('btnReset').onclick=()=>{ const db=load(); db[dayKey()]= {}; save(db); renderList(); };
 
-    // Web Share API (melhor experiência em celular)
-    document.getElementById('btnShare').onclick=async()=>{
-      const text=relatorioDia(dayIndex);
-      if(navigator.share){ try{ await navigator.share({text}); }catch(e){} }
-      else{ reportBox.value=text; alert('Relatório gerado na caixa de texto. Copie e cole onde quiser.'); }
-    };
+    document.getElementById('btnShare').onclick=async()=>{ const text=relatorioDia(dayIndex); if(navigator.share){ try{ await navigator.share({text}); }catch(e){} } else { reportBox.value=text; alert('Relatório gerado. Copie no campo abaixo.'); } };
 
-    /* ===================== Nome e Foto ===================== */
+    /* ===================== Nome & Foto ===================== */
     const nomeEl=document.getElementById('nome');
     nomeEl.addEventListener('input',()=> localStorage.setItem(NAMEKEY, nomeEl.textContent.trim()||'Pedro'));
     const n=localStorage.getItem(NAMEKEY); if(n) nomeEl.textContent=n;
-
     const avatarInput=document.getElementById('avatar');
     const avatarBox=document.getElementById('avatarBox');
-    function setAvatar(src){ avatarBox.innerHTML=`<img alt="Foto do ${nomeEl.textContent}" src="${src}">`; }
+    function setAvatar(src){ avatarBox.innerHTML=`<img alt="Foto do ${nomeEl.textContent}" src="${src}">` }
     avatarBox.addEventListener('click', ()=> avatarInput.click());
-    avatarInput.addEventListener('change', e=>{
-      const f=e.target.files?.[0]; if(!f) return;
-      const r=new FileReader(); r.onload=()=>{ localStorage.setItem(IMGKEY, r.result); setAvatar(r.result); }; r.readAsDataURL(f);
-    });
+    avatarInput.addEventListener('change', e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ localStorage.setItem(IMGKEY, r.result); setAvatar(r.result) }; r.readAsDataURL(f) });
     const storedImg=localStorage.getItem(IMGKEY); if(storedImg) setAvatar(storedImg);
 
-    /* ===================== PWA (parece aplicativo) ===================== */
-    // Manifest dinâmico
-    const manifest={
-      name:"Lousa App — Rotina do Pedro",
-      short_name:"Lousa do Pedro",
-      display:"standalone",
-      start_url:"./",
-      background_color:"#f9fbff",
-      theme_color:"#7cc5ff",
-      icons:[
-        {src:"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTI4JyBoZWlnaHQ9JzEyOCcgdmlld0JveD0nMCAwIDI0IDI0JyBmaWxsPSdub25lJyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxjaXJjbGUgY3g9JzEyJyBjeT0nOCcgcj0nNCcgc3Ryb2tlPScjN2NjNWZmJyBzdHJva2Utd2lkdGg9JzEnLz48cGF0aCBkPSdNNCAyMWE4IDggMCAxIDEgMTYgMCcgc3Ryb2tlPScjN2NjNWZmJyBzdHJva2Utd2lkdGg9JzEnLz48L3N2Zz4=", sizes:"128x128", type:"image/svg+xml"}
+    /* ===================== Manifest dinâmico (ok em HTTPS) ===================== */
+    const PNG192 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADAAQAAAAA6f6VAAABlElEQVR4nO3TwQmDQBRA0Xbq4FQW7iY0Kqg7qgU2WmQy0s0r7h1r3g0c8j8G4i8hU2w6Cj0F6Kq8m9m1x4j3zO1fXG3v1y8r7gF0F3g5F8Y0A1n6k4gG2gA0k2Ew6y7f0h2c8y2QG3y6D9m2u8L9qJw0iC3xwqv0m1r8H3oX1w1b4m5o0qf7HqgGxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKx4K9vYb2VwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKxwqKx8C8z4H9b0y+9J5g3z0S0v3z1Gf9Yc0v3z1Gf9Yc0v3z1Gf9Yc0v3z1Gf9Yc4K9j7v3e+0w8nry1Sx0AAAAASUVORK5CYII=';
+    const PNG512 = PNG192; // placeholder; para produção, use PNGs reais
+
+    const manifest = {
+      name: "Lousa App — Rotina do Pedro",
+      short_name: "Lousa do Pedro",
+      description: "Rotina infantil com check de tarefas, salvamento local e relatório.",
+      display: "standalone",
+      display_override: ["standalone","minimal-ui"],
+      start_url: ".?source=pwa",
+      scope: ".",
+      background_color: "#f9fbff",
+      theme_color: "#7cc5ff",
+      icons: [
+        { src: PNG192, sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: PNG512, sizes: "512x512", type: "image/png", purpose: "any" }
       ]
     };
-    const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
-    const url=URL.createObjectURL(blob);
-    const link=document.createElement('link'); link.rel='manifest'; link.href=url; document.head.appendChild(link);
+    const manBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+    const manUrl = URL.createObjectURL(manBlob);
+    const link = document.createElement('link'); link.rel='manifest'; link.href=manUrl; document.head.appendChild(link);
 
-    // Service Worker básico (cache do próprio arquivo)
-    if('serviceWorker' in navigator){
-      const swCode=`self.addEventListener('install',e=>{e.waitUntil(caches.open('lousa-pedro-v1').then(c=>c.addAll(['./'])))});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})`;
-      const swBlob=new Blob([swCode],{type:'text/javascript'});
-      const swUrl=URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl);
+    /* ===================== Service Worker (sem blob:) ===================== */
+    const btnInstall=document.getElementById('btnInstall');
+    const installBanner=document.getElementById('installBanner');
+    const iYes=document.getElementById('iYes'); const iNo=document.getElementById('iNo');
+
+    const isSecure = window.isSecureContext && /^(https:)|(^http:\/\/localhost)/.test(location.href);
+    const swUrl = (()=>{ // sw.js ao lado do index.html
+      const base = location.pathname.replace(/\/[^\/]*$/, '/');
+      return base + 'sw.js';
+    })();
+
+    function setStatus(msg){ statusEl.textContent = msg; }
+
+    async function maybeRegisterSW(){
+      if(!('serviceWorker' in navigator)) { setStatus('Navegador sem suporte a Service Worker'); return; }
+      if(!isSecure){
+        setStatus('Visualização (sem SW). Para instalar, publique via HTTPS.');
+        return; // evita tentativa em blob:/file:
+      }
+      try{
+        // Verifica se sw.js existe no servidor (evita erro de 404 ou blob:)
+        const res = await fetch(swUrl, {cache:'no-store'});
+        if(!res.ok){ setStatus('sw.js não encontrado — publique o arquivo junto do index.html'); return; }
+        const ct = (res.headers.get('content-type')||'').toLowerCase();
+        if(!ct.includes('javascript') && !ct.includes('text')){ setStatus('sw.js inválido — verifique o conteúdo JS'); return; }
+        await navigator.serviceWorker.register(swUrl);
+        setStatus('Offline pronto ✅');
+      }catch(err){
+        console.warn('Falha ao registrar SW:', err);
+        setStatus('Falha ao registrar SW — veja o console');
+      }
     }
 
+    // A2HS (Add to Home Screen)
+    let deferredPrompt=null;
+    window.addEventListener('beforeinstallprompt', (e)=>{
+      e.preventDefault(); deferredPrompt=e; btnInstall.style.display='inline-block'; installBanner.classList.add('show');
+      try{ document.getElementById('iIcon').src = PNG192; }catch(_){ }
+    });
+    async function triggerInstall(){
+      if(!deferredPrompt){ alert('Se o botão não aparecer, use o menu do Chrome: “Adicionar à tela inicial”.'); return; }
+      deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; btnInstall.style.display='none'; installBanner.classList.remove('show');
+    }
+    btnInstall.addEventListener('click', triggerInstall);
+    iYes.addEventListener('click', triggerInstall);
+    iNo.addEventListener('click', ()=> installBanner.classList.remove('show'));
+
+    /* ===================== Testes (sanity checks) ===================== */
+    function eligible(url, secure){ return secure && /^(https:)|(^http:\/\/localhost)/.test(url) }
+    ;(function runTests(){
+      const tests = [
+        {name:'HTTPS elegível', got: eligible('https://site', true), exp:true},
+        {name:'localhost elegível', got: eligible('http://localhost:8080', true), exp:true},
+        {name:'blob NÃO elegível', got: eligible('blob:https://site', true), exp:false},
+        {name:'file NÃO elegível', got: eligible('file:///index.html', true), exp:false},
+        {name:'http sem secureContext NÃO elegível', got: eligible('http://site', false), exp:false},
+      ];
+      tests.forEach(t=> console.assert(t.got===t.exp, `Teste falhou: ${t.name}`));
+      console.log('Testes SW:', tests);
+    })();
+
     /* ===================== Boot ===================== */
-    function boot(){ renderTabs(); renderList(); stamp.textContent=fmtFull(new Date()); }
-    boot();
+    function render(){ renderTabs(); renderList(); stamp.textContent=fmtFull(new Date()); }
+    render();
+    maybeRegisterSW();
   </script>
 </body>
 </html>
+
