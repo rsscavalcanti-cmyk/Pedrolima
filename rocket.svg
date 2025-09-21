@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>Gerador de ícones — Lousa App</title>
+<style>
+body{font-family:system-ui,Segoe UI,Inter,Arial,sans-serif;padding:20px}
+.log{white-space:pre-wrap;background:#f6f8fb;border:1px solid #dbe5f3;padding:12px;border-radius:10px}
+</style>
+<h1>Gerar PNGs do foguete</h1>
+<p>Este utilitário lê <code>./icons/rocket.svg</code> e baixa <b>icon-512.png</b>, <b>icon-192.png</b> e <b>icon-maskable.png</b>.</p>
+<button id="go">Gerar e baixar</button>
+<div class="log" id="log"></div>
+<script>
+const log = (m)=>{ const el = document.getElementById('log'); el.textContent += m + "\n"; };
+async function svgToPng(url, size, padMaskable=false){
+const res = await fetch(url, {cache:'no-store'});
+if(!res.ok) throw new Error('Não achei '+url);
+const svgText = await res.text();
+const img = new Image();
+const svgBlob = new Blob([svgText], {type:'image/svg+xml'});
+const svgUrl = URL.createObjectURL(svgBlob);
+await new Promise((ok,err)=>{ img.onload=ok; img.onerror=err; img.src=svgUrl; });
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+if(padMaskable){
+// cria zona segura (20% margem)
+canvas.width = canvas.height = size;
+ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,size,size);
+const margin = Math.round(size*0.2);
+const inner = size - margin*2;
+const x = margin, y = margin;
+// desenha svg centralizado dentro da área segura
+ctx.drawImage(img, x, y, inner, inner);
+}else{
+canvas.width = canvas.height = size;
+ctx.clearRect(0,0,size,size);
+ctx.drawImage(img, 0, 0, size, size);
+}
+const blob = await new Promise(res=> canvas.toBlob(res, 'image/png'));
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = padMaskable? 'icon-maskable.png' : `icon-${size}.png`;
+a.click();
+}
+
+
+document.getElementById('go').onclick = async()=>{
+try{
+log('Lendo ./icons/rocket.svg ...');
+await svgToPng('./icons/rocket.svg', 512);
+log('✓ Gerado icon-512.png');
+await svgToPng('./icons/rocket.svg', 192);
+log('✓ Gerado icon-192.png');
+await svgToPng('./icons/rocket.svg', 512, true);
+log('✓ Gerado icon-maskable.png (com margem)');
+log('Pronto! Faça upload dos 3 arquivos para /icons e ajuste o manifest se necessário.');
+}catch(e){
+log('Erro: '+ e.message);
+}
+};
+</script>
